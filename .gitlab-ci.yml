@@ -1,0 +1,46 @@
+image: python:3.11
+
+# Change pip's cache directory to be inside the project directory since we can
+# only cache local items.
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# Pip's cache doesn't store the python packages
+# https://pip.pypa.io/en/stable/topics/caching/
+#
+# If you want to also cache the installed packages, you have to install
+# them in a virtualenv and cache it as well.
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+before_script:
+  - python --version  # For debugging
+  - pip install virtualenv
+  - virtualenv venv
+  - source venv/bin/activate
+  - pip install poetry
+  - poetry install --all-extras
+
+test:
+  script:
+    - flake8 application
+    - mypy application
+    - pytest --cov=application --cov-report xml tests
+    - radon cc --json -O radon_cc.json --show-complexity --total-average application/
+    - radon mi --json -O radon_mi.json --show application/
+  artifacts:
+    paths:
+      - coverage.xml
+      - radon_cc.json
+      - radon_mi.json
+
+build:
+  script:
+    - poetry build
+  artifacts:
+    paths:
+      - dist/*.whl
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
