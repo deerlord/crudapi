@@ -1,7 +1,6 @@
 from dblib import database
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
+from fastapi import APIRouter, FastAPI, HTTPException, status
 
-from . import models
 from .router import AsyncCRUDRouter
 from .settings import Settings
 
@@ -20,12 +19,12 @@ def setup_application() -> FastAPI:
 
 def crudrouter() -> APIRouter:
     router = APIRouter()
-    for package in models.find_packages():
-        prefix = package.__name__.replace("dblib.models.", "").lower()
-        pkg_router = APIRouter(prefix=f"/{prefix}")
-        for model in models.find_data_models(package):
-            crud = AsyncCRUDRouter(sql_model=model)
-            pkg_router.include_router(crud)
+    data_models = database.data_models()
+    for name, models in data_models.items():
+        pkg_router = APIRouter(prefix=f"/{name}")
+        for model in models:
+            model_router = AsyncCRUDRouter(sql_model=model)
+            pkg_router.include_router(model_router)
         router.include_router(pkg_router)
     return router
 
