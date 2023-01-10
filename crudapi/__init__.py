@@ -2,13 +2,9 @@ from dblib import database
 from fastapi import APIRouter, FastAPI, HTTPException, status
 
 from .router import AsyncCRUDRouter
-from .settings import Settings
 
 
-def setup_application() -> FastAPI:
-    settings = Settings()
-    database.create_tables()
-    debug = settings.log_level.upper() == "DEBUG"
+def setup_application(debug: bool) -> FastAPI:
     app = FastAPI(debug=debug)
     crud = crudrouter()
     app.include_router(crud, prefix="/crud")

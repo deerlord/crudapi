@@ -26,11 +26,11 @@ before_script:
 
 test:
   script:
-    - flake8 application
-    - mypy application
-    - pytest --cov=application --cov-report xml tests
-    - radon cc --json -O radon_cc.json --show-complexity --total-average application/
-    - radon mi --json -O radon_mi.json --show application/
+    - flake8 crudapi
+    - mypy crudapi
+    - pytest --cov=crudapi --cov-report xml tests
+    - radon cc --json -O radon_cc.json --show-complexity --total-average crudapi/
+    - radon mi --json -O radon_mi.json --show crudapi/
   artifacts:
     paths:
       - coverage.xml

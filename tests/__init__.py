@@ -4,7 +4,7 @@ from typing import Generator, Tuple
 import pytest
 from httpx import AsyncClient
 
-from application import setup_application
+from crudapi import setup_application
 
 
 @pytest.fixture
