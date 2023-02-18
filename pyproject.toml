@@ -11,7 +11,7 @@ fastapi = {extras = ["uvloop"], version = "^0.75.0"}
 uvicorn = {extras = ["standard"], version = "^0.17.6"}
 fastapi-crudrouter = "^0.8.5"
 aiohttp = "^3.8.3"
-dblib = {git = "https://gitlab.com/gerald32/dblib.git"}
+dblib = {git = "https://github.com/deerlord/dblib.git"}
 
 [tool.poetry.group.dev.dependencies]
 isort = "^5.11.4"
