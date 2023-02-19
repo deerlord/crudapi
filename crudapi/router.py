@@ -167,7 +167,7 @@ def schema_factory(
         if f.name not in exclude
     }
 
-    module = schema_cls.__module__
+    *_, module = schema_cls.__module__.split(".")
     name = schema_cls.__name__
     model_name = f"{module}{name}{action}"
     schema: Type[T] = create_model(__model_name=model_name, **fields)  # type: ignore
