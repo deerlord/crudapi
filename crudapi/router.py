@@ -4,6 +4,7 @@ from typing import Any, Callable, Coroutine, Optional, Type, TypeAlias, TypeVar
 from dblib import database
 from fastapi import Depends, HTTPException
 from fastapi_crudrouter import SQLAlchemyCRUDRouter  # type: ignore
+from pydantic import create_model
 from sqlalchemy import select
 from sqlalchemy.sql import Delete, Select
 from sqlmodel import SQLModel
@@ -14,6 +15,7 @@ CALLABLE_LIST: TypeAlias = Callable[..., Coroutine[Any, Any, list[SQLModel]]]
 CALLABLE: TypeAlias = Callable[..., Coroutine[Any, Any, SQLModel]]
 NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, "Item not found")
 ST = TypeVar("ST", Select, Delete)
+T = TypeVar("T", bound=SQLModel)
 
 
 class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
@@ -28,9 +30,16 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
         category = sql_model.__module__.split(".")[-1]
         name = self._spaces_on_capital(model_name)
         tag = f"{category.capitalize()} - {name}"
+        exclude = {"created_at", "updated_at"}
+        schema = schema_factory(sql_model, exclude, "")
+        exclude.add("id")
+        create_schema = schema_factory(sql_model, exclude, "Create")
+        update_schema = schema_factory(sql_model, exclude, "Update")
         super().__init__(
-            schema=sql_model,
+            schema=schema,
             db_model=sql_model,
+            create_schema=create_schema,
+            update_schema=update_schema,
             db=database.connection,
             prefix=f"/{model_name}",
             tags=[tag],
@@ -143,3 +152,23 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
 
     def __hash__(self):
         return hash(self.sql_model)
+
+
+def schema_factory(
+    schema_cls: Type[T], exclude: set = set(), action: str = "Create"
+) -> Type[T]:
+    """
+    Used in place of fastapi-crudrouter's schema_factory, due to alternate naming conventions required.
+    """
+
+    fields = {
+        f.name: (f.type_, ...)
+        for f in schema_cls.__fields__.values()
+        if f.name not in exclude
+    }
+
+    module = schema_cls.__module__
+    name = schema_cls.__name__
+    model_name = f"{module}{name}{action}"
+    schema: Type[T] = create_model(__model_name=model_name, **fields)  # type: ignore
+    return schema
