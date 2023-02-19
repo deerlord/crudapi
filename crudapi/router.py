@@ -79,11 +79,11 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
 
     def _get_one(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
-            id: self._pk_type,  # type: ignore
+            item_id: self._pk_type,  # type: ignore
             db: database.SESSION = Depends(self.database),
         ) -> self.db_model:  # type: ignore
             statement = select(self.db_model)
-            statement = statement.where(getattr(self.db_model, self._pk) == id)
+            statement = statement.where(getattr(self.db_model, self._pk) == item_id)
             results = await db.execute(statement)
             items = results.first()
             if items:
@@ -108,12 +108,12 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
 
     def _update(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
-            id: self._pk_type,  # type: ignore
+            item_id: self._pk_type,  # type: ignore
             model: self.update_schema,  # type: ignore
             db: database.SESSION = Depends(self.database),
         ):
             get_one = self._get_one()
-            db_model = await get_one(id, db)
+            db_model = await get_one(item_id, db)
             for key, value in model.dict(exclude={self._pk}).items():
                 if hasattr(db_model, key):
                     setattr(db_model, key, value)
@@ -140,11 +140,11 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
 
     def _delete_one(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
-            id: self._pk_type,  # type: ignore
+            item_id: self._pk_type,  # type: ignore
             db: database.SESSION = Depends(self.database),
         ):
             get_one = self._get_one()
-            one = await get_one(id, db)
+            one = await get_one(item_id, db)
             await db.delete(one)
             return one
 
