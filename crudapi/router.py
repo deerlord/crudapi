@@ -28,8 +28,8 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
         self.sql_model = sql_model
         model_name = sql_model.__name__
         category = sql_model.__module__.split(".")[-1]
-        name = self._spaces_on_capital(model_name)
-        tag = f"{category.capitalize()} - {name}"
+        #model_name = self._spaces_on_capital(model_name)
+        tag = f"{category.capitalize()} - {model_name}"
         exclude = {"created_at", "updated_at"}
         schema = schema_factory(sql_model, exclude, "")
         exclude.add("id")
