@@ -1,4 +1,5 @@
-import string
+from copy import deepcopy
+import re
 from typing import Any, Callable, Coroutine, Optional, Type, TypeAlias, TypeVar
 
 from dblib import database
@@ -13,8 +14,7 @@ from starlette import status
 PAGINATION: TypeAlias = dict[str, Optional[int]]
 CALLABLE_LIST: TypeAlias = Callable[..., Coroutine[Any, Any, list[SQLModel]]]
 CALLABLE: TypeAlias = Callable[..., Coroutine[Any, Any, SQLModel]]
-NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, "Item not found")
-ST = TypeVar("ST", Select, Delete)
+Q = TypeVar("Q", Select, Delete)
 T = TypeVar("T", bound=SQLModel)
 
 
@@ -24,17 +24,18 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
     def __init__(
         self,
         sql_model: Type[SQLModel],
+        exclude: set = {"created_at", "updated_at"},
+        pk_field: str = "id"
     ):
+        exclude = deepcopy(exclude)
         self.sql_model = sql_model
         model_name = sql_model.__name__
         category = sql_model.__module__.split(".")[-1]
-        #model_name = self._spaces_on_capital(model_name)
-        tag = f"{category.capitalize()} - {model_name}"
-        exclude = {"created_at", "updated_at"}
-        schema = schema_factory(sql_model, exclude, "")
-        exclude.add("id")
-        create_schema = schema_factory(sql_model, exclude, "Create")
-        update_schema = schema_factory(sql_model, exclude, "Update")
+        tag = f"{category.capitalize()} - {_make_spaces(model_name)}"
+        schema = _schema_factory(sql_model, exclude, "")
+        exclude.add(pk_field)
+        create_schema = _schema_factory(sql_model, exclude, "Create")
+        update_schema = _schema_factory(sql_model, exclude, "Update")
         super().__init__(
             schema=schema,
             db_model=sql_model,
@@ -45,19 +46,8 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
             tags=[tag],
         )
 
-    @staticmethod
-    def _spaces_on_capital(phrase: str) -> str:
-        chars = []
-        for index, char in enumerate(phrase):
-            if index > 0 and char in string.ascii_uppercase:
-                chars.append(" ")
-            chars.append(char)
-        capitalized = "".join(chars)
-        return capitalized
-
-    @staticmethod
-    async def database():
-        async with database.connection() as db:
+    async def database(self) -> database.SESSION:
+        async with self.db() as db:
             yield db
 
     def _get_all(self, *args: Any, **kwargs: Any) -> CALLABLE_LIST:
@@ -154,7 +144,7 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
         return hash(self.sql_model)
 
 
-def schema_factory(
+def _schema_factory(
     schema_cls: Type[T], exclude: set = set(), action: str = "Create"
 ) -> Type[T]:
     """
@@ -172,3 +162,11 @@ def schema_factory(
     model_name = f"{module}{name}{action}"
     schema: Type[T] = create_model(__model_name=model_name, **fields)  # type: ignore
     return schema
+
+
+def _make_spaces(phrase: str) -> str:
+    capitalized = "[A-Z][a-z]+"
+    acronym = "[A-Z]+(?=[A-Z])"
+    regex = f"({acronym}|{capitalized})"
+    words = re.findall(regex, phrase)
+    return "_".join(words)
