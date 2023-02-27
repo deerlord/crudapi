@@ -33,9 +33,9 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
         category = sql_model.__module__.split(".")[-1]
         tag = f"{category.capitalize()} - {_make_spaces(model_name)}"
         schema = _schema_factory(sql_model, exclude, "")
-        exclude.add(self.pk_field)
-        create_schema = _schema_factory(sql_model, exclude, "Create")
-        update_schema = _schema_factory(sql_model, exclude, "Update")
+        self.exclude.add(self.pk_field)
+        create_schema = _schema_factory(sql_model, self.exclude, "Create")
+        update_schema = _schema_factory(sql_model, self.exclude, "Update")
         super().__init__(
             schema=schema,
             db_model=sql_model,
