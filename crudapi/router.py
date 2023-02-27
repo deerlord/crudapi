@@ -20,12 +20,12 @@ T = TypeVar("T", bound=SQLModel)
 
 class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
     sql_model: Type[SQLModel]
+    exclude: set = {"created_at", "updated_at", "id"},
+    pk_field: str = "uuid"
 
     def __init__(
         self,
-        sql_model: Type[SQLModel],
-        exclude: set = {"created_at", "updated_at"},
-        pk_field: str = "id"
+        sql_model: Type[SQLModel],       
     ):
         exclude = deepcopy(exclude)
         self.sql_model = sql_model
@@ -33,7 +33,7 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
         category = sql_model.__module__.split(".")[-1]
         tag = f"{category.capitalize()} - {_make_spaces(model_name)}"
         schema = _schema_factory(sql_model, exclude, "")
-        exclude.add(pk_field)
+        exclude.add(self.pk_field)
         create_schema = _schema_factory(sql_model, exclude, "Create")
         update_schema = _schema_factory(sql_model, exclude, "Update")
         super().__init__(
@@ -169,4 +169,4 @@ def _make_spaces(phrase: str) -> str:
     acronym = "[A-Z]+(?=[A-Z])"
     regex = f"({acronym}|{capitalized})"
     words = re.findall(regex, phrase)
-    return "_".join(words)
+    return " ".join(words)
