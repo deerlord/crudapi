@@ -1,11 +1,9 @@
 import re
-from copy import deepcopy
 from uuid import UUID
 from typing import Any, Callable, Coroutine, Optional, Type, TypeAlias, TypeVar
 
 from dblib import database
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi_crudrouter import SQLAlchemyCRUDRouter  # type: ignore
 from pydantic import create_model
 from sqlalchemy import select
 from sqlalchemy.sql import Delete, Select
@@ -116,11 +114,11 @@ class AsyncCRUDRouter(APIRouter):
         async def route(
             pagination: PAGINATION = self.pagination,
             db: database.SESSION = Depends(self.database),
-        ) -> list[self.db_model]:  # type: ignore
+        ) -> list[self.sql_model]:  # type: ignore
             skip, limit = pagination.get("skip"), pagination.get("limit")
-            statement = select(self.db_model)
+            statement = select(self.sql_model)
             statement = (
-                statement.order_by(getattr(self.db_model, self.pk_field))
+                statement.order_by(getattr(self.sql_model, self.pk_field))
                 .limit(limit)
                 .offset(skip)
             )
@@ -133,9 +131,9 @@ class AsyncCRUDRouter(APIRouter):
         async def route(
             uuid: self.pk_type,  # type: ignore
             db: database.SESSION = Depends(self.database),
-        ) -> self.db_model:  # type: ignore
-            statement = select(self.db_model)
-            statement = statement.where(getattr(self.db_model, self.pk_field) == uuid)
+        ) -> self.sql_model:  # type: ignore
+            statement = select(self.sql_model)
+            statement = statement.where(getattr(self.sql_model, self.pk_field) == uuid)
             results = await db.execute(statement)
             items = results.first()
             if items:
@@ -150,7 +148,7 @@ class AsyncCRUDRouter(APIRouter):
             model: self.create_schema,  # type: ignore
             db: database.SESSION = Depends(self.database),
         ):
-            db_model = self.db_model(**model.dict())
+            db_model = self.sql_model(**model.dict())
             db.add(db_model)
             await db.commit()
             await db.refresh(db_model)
@@ -179,7 +177,7 @@ class AsyncCRUDRouter(APIRouter):
         async def route(
             db: database.SESSION = Depends(self.database),
         ) -> list[SQLModel]:
-            statement = select(self.db_model)
+            statement = select(self.sql_model)
             results = await db.execute(statement)
             for result in results.scalars().all():
                 await db.delete(result)
