@@ -33,8 +33,8 @@ class AsyncCRUDRouter(APIRouter):
         tag = f"{category.capitalize()} - {_make_spaces(model_name)}"
         schema = _schema_factory(sql_model, self.exclude, "")
         self.exclude.add(self.pk_field)
-        create_schema = _schema_factory(sql_model, self.exclude, "Create")
-        update_schema = _schema_factory(sql_model, self.exclude, "Update")
+        self.create_schema = _schema_factory(sql_model, self.exclude, "Create")
+        self.update_schema = _schema_factory(sql_model, self.exclude, "Update")
         # super().__init__(
         #     schema=schema,
         #     db_model=sql_model,
@@ -46,6 +46,8 @@ class AsyncCRUDRouter(APIRouter):
         # )
         super().__init__(prefix=f"/{model_name}", tags=[tag])
 
+        NOT_FOUND = HTTPException(404, "Not Found")
+
         super().add_api_route(
             "",
             self._get_all(),
@@ -53,6 +55,55 @@ class AsyncCRUDRouter(APIRouter):
             response_model=Optional[List[schema]],  # type: ignore
             summary="Get All",
         )
+
+        super().add_api_route(
+            "",
+            self._create(),
+            methods=["POST"],
+            response_model=schema,
+            summary="Create One",
+        )
+
+        super().add_api_route(
+            "",
+            self._delete_all(),
+            methods=["DELETE"],
+            response_model=Optional[List[schema]],  # type: ignore
+            summary="Delete All",
+        )
+
+        super().add_api_route(
+            "/{uuid}",
+            self._get_one(),
+            methods=["GET"],
+            response_model=schema,
+            summary="Get One",
+            responses=self._error_responses(NOT_FOUND)
+        )
+
+        super().add_api_route(
+            "/{uuid}",
+            self._update(),
+            methods=["PATCH"],
+            response_model=schema,
+            summary="Update One",
+            responses=self._error_responses(NOT_FOUND)
+        )
+
+        super().add_api_route(
+            "/{uuid}",
+            self._delete_one(),
+            methods=["DELETE"],
+            response_model=schema,
+            summary="Delete One",
+            responses=self._error_responses(NOT_FOUND)
+        )
+
+    def _error_responses(*errors: HTTPException) -> dict[int, dict[str, str]]:
+        responses = {
+            err.status_code: {"detail": err.detail} for err in errors
+        }
+        return responses
 
     async def database(self) -> database.SESSION:
         async with self.db() as db:
@@ -77,11 +128,11 @@ class AsyncCRUDRouter(APIRouter):
 
     def _get_one(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
-            item_id: self._pk_type,  # type: ignore
+            uuid: self._pk_type,  # type: ignore
             db: database.SESSION = Depends(self.database),
         ) -> self.db_model:  # type: ignore
             statement = select(self.db_model)
-            statement = statement.where(getattr(self.db_model, self._pk) == item_id)
+            statement = statement.where(getattr(self.db_model, self._pk) == uuid)
             results = await db.execute(statement)
             items = results.first()
             if items:
@@ -106,12 +157,12 @@ class AsyncCRUDRouter(APIRouter):
 
     def _update(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
-            item_id: self._pk_type,  # type: ignore
+            uuid: self._pk_type,  # type: ignore
             model: self.update_schema,  # type: ignore
             db: database.SESSION = Depends(self.database),
         ):
             get_one = self._get_one()
-            db_model = await get_one(item_id, db)
+            db_model = await get_one(uuid, db)
             for key, value in model.dict(exclude={self._pk}).items():
                 if hasattr(db_model, key):
                     setattr(db_model, key, value)
@@ -138,11 +189,11 @@ class AsyncCRUDRouter(APIRouter):
 
     def _delete_one(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
-            item_id: self._pk_type,  # type: ignore
+            uuid: self._pk_type,  # type: ignore
             db: database.SESSION = Depends(self.database),
         ):
             get_one = self._get_one()
-            one = await get_one(item_id, db)
+            one = await get_one(uuid, db)
             await db.delete(one)
             return one
 
@@ -152,9 +203,7 @@ class AsyncCRUDRouter(APIRouter):
         return hash(self.sql_model)
 
 
-def _schema_factory(
-    schema_cls: Type[T], exclude: set = set(), action: str = "Create"
-):
+def _schema_factory(schema_cls: Type[T], exclude: set = set(), action: str = "Create"):
     """
     Used in place of fastapi-crudrouter's schema_factory, due to alternate naming conventions required.
     """
