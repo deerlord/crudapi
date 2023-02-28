@@ -9,8 +9,6 @@ readme = "README.md"
 python = "^3.10"
 fastapi = {extras = ["uvloop"], version = "^0.75.0"}
 uvicorn = {extras = ["standard"], version = "^0.17.6"}
-fastapi-crudrouter = "^0.8.5"
-aiohttp = "^3.8.3"
 dblib = {git = "https://github.com/deerlord/dblib.git"}
 
 [tool.poetry.group.dev.dependencies]

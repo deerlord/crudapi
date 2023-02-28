@@ -1,5 +1,5 @@
-from copy import deepcopy
 import re
+from copy import deepcopy
 from typing import Any, Callable, Coroutine, Optional, Type, TypeAlias, TypeVar
 from uuid import UUID
 
@@ -38,18 +38,10 @@ class AsyncCRUDRouter(APIRouter):
         exclude.add(self.pk_field)
         self.create_schema = _schema_factory(sql_model, exclude, "Create")
         self.update_schema = _schema_factory(sql_model, exclude, "Update")
-        # super().__init__(
-        #     schema=schema,
-        #     db_model=sql_model,
-        #     create_schema=create_schema,
-        #     update_schema=update_schema,
-        #     db=database.connection,
-        #     prefix=f"/{model_name}",
-        #     tags=[tag],
-        # )
-        super().__init__(prefix=f"/{model_name.lower()}", tags=[tag])
 
         NOT_FOUND = HTTPException(404, "Not Found")
+
+        super().__init__(prefix=f"/{model_name.lower()}", tags=[tag])
 
         super().add_api_route(
             "",
