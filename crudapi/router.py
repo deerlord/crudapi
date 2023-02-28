@@ -100,6 +100,7 @@ class AsyncCRUDRouter(APIRouter):
             responses=self._error_responses(NOT_FOUND),
         )
 
+    @staticmethod
     def _error_responses(*errors: HTTPException) -> dict[int, dict[str, str]]:
         responses = {err.status_code: {"detail": err.detail} for err in errors}
         return responses
