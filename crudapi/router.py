@@ -154,7 +154,7 @@ class AsyncCRUDRouter(APIRouter):
 
 def _schema_factory(
     schema_cls: Type[T], exclude: set = set(), action: str = "Create"
-) -> Type[T]:
+):
     """
     Used in place of fastapi-crudrouter's schema_factory, due to alternate naming conventions required.
     """
