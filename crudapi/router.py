@@ -1,3 +1,4 @@
+from copy import deepcopy
 import re
 from typing import Any, Callable, Coroutine, Optional, Type, TypeAlias, TypeVar
 from uuid import UUID
@@ -27,15 +28,16 @@ class AsyncCRUDRouter(APIRouter):
         self,
         sql_model: Type[SQLModel],
     ):
+        exclude = deepcopy(self.exclude)
         self.pagination = _pagination_factory(max_limit=None)
         self.sql_model = sql_model
         model_name = sql_model.__name__
         category = sql_model.__module__.split(".")[-1]
         tag = f"{category.capitalize()} - {_make_spaces(model_name)}"
-        self.schema = _schema_factory(sql_model, self.exclude, "Schema")
-        self.exclude.add(self.pk_field)
-        self.create_schema = _schema_factory(sql_model, self.exclude, "Create")
-        self.update_schema = _schema_factory(sql_model, self.exclude, "Update")
+        self.schema = _schema_factory(sql_model, exclude, "Schema")
+        exclude.add(self.pk_field)
+        self.create_schema = _schema_factory(sql_model, exclude, "Create")
+        self.update_schema = _schema_factory(sql_model, exclude, "Update")
         # super().__init__(
         #     schema=schema,
         #     db_model=sql_model,
