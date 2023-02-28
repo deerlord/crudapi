@@ -32,7 +32,7 @@ class AsyncCRUDRouter(APIRouter):
         model_name = sql_model.__name__
         category = sql_model.__module__.split(".")[-1]
         tag = f"{category.capitalize()} - {_make_spaces(model_name)}"
-        self.schema = _schema_factory(sql_model, self.exclude, "")
+        self.schema = _schema_factory(sql_model, self.exclude, "Schema")
         self.exclude.add(self.pk_field)
         self.create_schema = _schema_factory(sql_model, self.exclude, "Create")
         self.update_schema = _schema_factory(sql_model, self.exclude, "Update")
