@@ -47,7 +47,7 @@ class AsyncCRUDRouter(APIRouter):
         #     prefix=f"/{model_name}",
         #     tags=[tag],
         # )
-        super().__init__(prefix=f"/{model_name}", tags=[tag])
+        super().__init__(prefix=f"/{model_name.lower()}", tags=[tag])
 
         NOT_FOUND = HTTPException(404, "Not Found")
 
