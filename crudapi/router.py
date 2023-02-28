@@ -20,7 +20,7 @@ T = TypeVar("T", bound=SQLModel)
 
 class AsyncCRUDRouter(APIRouter):
     sql_model: Type[SQLModel]
-    exclude: set = ({"created_at", "updated_at", "id"},)
+    exclude: set = {"created_at", "updated_at", "id"}
     pk_field: str = "uuid"
 
     def __init__(
