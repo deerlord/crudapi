@@ -1,5 +1,6 @@
 import re
 from copy import deepcopy
+from uuid import UUID
 from typing import Any, Callable, Coroutine, Optional, Type, TypeAlias, TypeVar
 
 from dblib import database
@@ -22,6 +23,7 @@ class AsyncCRUDRouter(APIRouter):
     sql_model: Type[SQLModel]
     exclude: set = {"created_at", "updated_at", "id"}
     pk_field: str = "uuid"
+    pk_type: Type = UUID
 
     def __init__(
         self,
@@ -118,7 +120,7 @@ class AsyncCRUDRouter(APIRouter):
             skip, limit = pagination.get("skip"), pagination.get("limit")
             statement = select(self.db_model)
             statement = (
-                statement.order_by(getattr(self.db_model, self._pk))
+                statement.order_by(getattr(self.db_model, self.pk_field))
                 .limit(limit)
                 .offset(skip)
             )
@@ -129,11 +131,11 @@ class AsyncCRUDRouter(APIRouter):
 
     def _get_one(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
-            uuid: self._pk_type,  # type: ignore
+            uuid: self.pk_type,  # type: ignore
             db: database.SESSION = Depends(self.database),
         ) -> self.db_model:  # type: ignore
             statement = select(self.db_model)
-            statement = statement.where(getattr(self.db_model, self._pk) == uuid)
+            statement = statement.where(getattr(self.db_model, self.pk_field) == uuid)
             results = await db.execute(statement)
             items = results.first()
             if items:
@@ -158,13 +160,13 @@ class AsyncCRUDRouter(APIRouter):
 
     def _update(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
-            uuid: self._pk_type,  # type: ignore
+            uuid: self.pk_type,  # type: ignore
             model: self.update_schema,  # type: ignore
             db: database.SESSION = Depends(self.database),
         ):
             get_one = self._get_one()
             db_model = await get_one(uuid, db)
-            for key, value in model.dict(exclude={self._pk}).items():
+            for key, value in model.dict(exclude={self.pk_field}).items():
                 if hasattr(db_model, key):
                     setattr(db_model, key, value)
             await db.commit()
@@ -190,7 +192,7 @@ class AsyncCRUDRouter(APIRouter):
 
     def _delete_one(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
-            uuid: self._pk_type,  # type: ignore
+            uuid: self.pk_type,  # type: ignore
             db: database.SESSION = Depends(self.database),
         ):
             get_one = self._get_one()
