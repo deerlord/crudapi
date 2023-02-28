@@ -27,6 +27,7 @@ class AsyncCRUDRouter(APIRouter):
         self,
         sql_model: Type[SQLModel],
     ):
+        self.pagination = pagination_factory(max_limit=None)
         self.sql_model = sql_model
         model_name = sql_model.__name__
         category = sql_model.__module__.split(".")[-1]
@@ -219,6 +220,46 @@ def _schema_factory(schema_cls: Type[T], exclude: set = set(), action: str = "Cr
     model_name = f"{module}{name}{action}"
     schema: Type[T] = create_model(__model_name=model_name, **fields)  # type: ignore
     return schema
+
+
+def pagination_factory(max_limit: Optional[int] = None) -> Any:
+    """
+    Created the pagination dependency to be used in the router
+    """
+
+    def pagination(skip: int = 0, limit: Optional[int] = max_limit) -> PAGINATION:
+        if skip < 0:
+            raise create_query_validation_exception(
+                field="skip",
+                msg="skip query parameter must be greater or equal to zero",
+            )
+
+        if limit is not None:
+            if limit <= 0:
+                raise create_query_validation_exception(
+                    field="limit", msg="limit query parameter must be greater then zero"
+                )
+
+            elif max_limit and max_limit < limit:
+                raise create_query_validation_exception(
+                    field="limit",
+                    msg=f"limit query parameter must be less then {max_limit}",
+                )
+
+        return {"skip": skip, "limit": limit}
+
+    return Depends(pagination)
+
+
+def create_query_validation_exception(field: str, msg: str) -> HTTPException:
+    return HTTPException(
+        422,
+        detail={
+            "detail": [
+                {"loc": ["query", field], "msg": msg, "type": "type_error.integer"}
+            ]
+        },
+    )
 
 
 def _make_spaces(phrase: str) -> str:
