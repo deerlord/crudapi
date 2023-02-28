@@ -32,7 +32,7 @@ class AsyncCRUDRouter(APIRouter):
         model_name = sql_model.__name__
         category = sql_model.__module__.split(".")[-1]
         tag = f"{category.capitalize()} - {_make_spaces(model_name)}"
-        schema = _schema_factory(sql_model, self.exclude, "")
+        self.schema = _schema_factory(sql_model, self.exclude, "")
         self.exclude.add(self.pk_field)
         self.create_schema = _schema_factory(sql_model, self.exclude, "Create")
         self.update_schema = _schema_factory(sql_model, self.exclude, "Update")
@@ -53,7 +53,7 @@ class AsyncCRUDRouter(APIRouter):
             "",
             self._get_all(),
             methods=["GET"],
-            response_model=Optional[List[schema]],  # type: ignore
+            response_model=Optional[List[self.schema]],  # type: ignore
             summary="Get All",
         )
 
@@ -61,7 +61,7 @@ class AsyncCRUDRouter(APIRouter):
             "",
             self._create(),
             methods=["POST"],
-            response_model=schema,
+            response_model=self.schema,
             summary="Create One",
         )
 
@@ -69,7 +69,7 @@ class AsyncCRUDRouter(APIRouter):
             "",
             self._delete_all(),
             methods=["DELETE"],
-            response_model=Optional[List[schema]],  # type: ignore
+            response_model=Optional[List[self.schema]],  # type: ignore
             summary="Delete All",
         )
 
@@ -77,7 +77,7 @@ class AsyncCRUDRouter(APIRouter):
             "/{uuid}",
             self._get_one(),
             methods=["GET"],
-            response_model=schema,
+            response_model=self.schema,
             summary="Get One",
             responses=self._error_responses(NOT_FOUND)
         )
@@ -86,7 +86,7 @@ class AsyncCRUDRouter(APIRouter):
             "/{uuid}",
             self._update(),
             methods=["PATCH"],
-            response_model=schema,
+            response_model=self.schema,
             summary="Update One",
             responses=self._error_responses(NOT_FOUND)
         )
@@ -95,7 +95,7 @@ class AsyncCRUDRouter(APIRouter):
             "/{uuid}",
             self._delete_one(),
             methods=["DELETE"],
-            response_model=schema,
+            response_model=self.schema,
             summary="Delete One",
             responses=self._error_responses(NOT_FOUND)
         )
@@ -114,7 +114,7 @@ class AsyncCRUDRouter(APIRouter):
         async def route(
             pagination: PAGINATION = self.pagination,
             db: database.SESSION = Depends(self.database),
-        ) -> list[self.sql_model]:  # type: ignore
+        ) -> list[self.schema]:  # type: ignore
             skip, limit = pagination.get("skip"), pagination.get("limit")
             statement = select(self.sql_model)
             statement = (
@@ -123,7 +123,11 @@ class AsyncCRUDRouter(APIRouter):
                 .offset(skip)
             )
             results = await db.execute(statement)
-            return results.scalars().all()
+            retval = []
+            for scalar in results.scalars().all():
+                model = self.schema(**scalar.dict())
+                retval.append(model)
+            return retval
 
         return route
 
@@ -131,13 +135,14 @@ class AsyncCRUDRouter(APIRouter):
         async def route(
             uuid: self.pk_type,  # type: ignore
             db: database.SESSION = Depends(self.database),
-        ) -> self.sql_model:  # type: ignore
+        ) -> self.schema:  # type: ignore
             statement = select(self.sql_model)
             statement = statement.where(getattr(self.sql_model, self.pk_field) == uuid)
             results = await db.execute(statement)
             items = results.first()
             if items:
-                return items[0]
+                model = self.schema(**items[0].dict())
+                return model
             detail = f"{self.sql_model.__name__.lower()} not found"
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
 
@@ -147,12 +152,13 @@ class AsyncCRUDRouter(APIRouter):
         async def route(
             model: self.create_schema,  # type: ignore
             db: database.SESSION = Depends(self.database),
-        ):
+        ) -> self.schema:
             db_model = self.sql_model(**model.dict())
             db.add(db_model)
             await db.commit()
             await db.refresh(db_model)
-            return db_model
+            retval = self.schema(**db_model.dict())
+            return retval
 
         return route
 
@@ -161,7 +167,7 @@ class AsyncCRUDRouter(APIRouter):
             uuid: self.pk_type,  # type: ignore
             model: self.update_schema,  # type: ignore
             db: database.SESSION = Depends(self.database),
-        ):
+        ) -> self.schema:
             get_one = self._get_one()
             db_model = await get_one(uuid, db)
             for key, value in model.dict(exclude={self.pk_field}).items():
@@ -169,14 +175,15 @@ class AsyncCRUDRouter(APIRouter):
                     setattr(db_model, key, value)
             await db.commit()
             await db.refresh(db_model)
-            return db_model
+            retval = self.schema(**db_model.dict())
+            return retval
 
         return route
 
     def _delete_all(self, *args: Any, **kwargs: Any) -> CALLABLE_LIST:
         async def route(
             db: database.SESSION = Depends(self.database),
-        ) -> list[SQLModel]:
+        ) -> list[self.schema]:
             statement = select(self.sql_model)
             results = await db.execute(statement)
             for result in results.scalars().all():
@@ -196,7 +203,8 @@ class AsyncCRUDRouter(APIRouter):
             get_one = self._get_one()
             one = await get_one(uuid, db)
             await db.delete(one)
-            return one
+            retval = self.schema(**one.dict())
+            return retval
 
         return route
 
