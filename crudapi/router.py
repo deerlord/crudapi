@@ -105,7 +105,7 @@ class AsyncCRUDRouter(APIRouter):
         return responses
 
     async def _database(self) -> database.SESSION:
-        async with self.db() as db:
+        async with database.connection() as db:
             yield db
 
     def _get_all(self, *args: Any, **kwargs: Any) -> CALLABLE_LIST:
