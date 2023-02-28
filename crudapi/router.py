@@ -1,9 +1,9 @@
-from copy import deepcopy
 import re
+from copy import deepcopy
 from typing import Any, Callable, Coroutine, Optional, Type, TypeAlias, TypeVar
 
 from dblib import database
-from fastapi import Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi_crudrouter import SQLAlchemyCRUDRouter  # type: ignore
 from pydantic import create_model
 from sqlalchemy import select
@@ -18,14 +18,14 @@ Q = TypeVar("Q", Select, Delete)
 T = TypeVar("T", bound=SQLModel)
 
 
-class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
+class AsyncCRUDRouter(APIRouter):
     sql_model: Type[SQLModel]
-    exclude: set = {"created_at", "updated_at", "id"},
+    exclude: set = ({"created_at", "updated_at", "id"},)
     pk_field: str = "uuid"
 
     def __init__(
         self,
-        sql_model: Type[SQLModel],       
+        sql_model: Type[SQLModel],
     ):
         self.sql_model = sql_model
         model_name = sql_model.__name__
@@ -35,14 +35,23 @@ class AsyncCRUDRouter(SQLAlchemyCRUDRouter):
         self.exclude.add(self.pk_field)
         create_schema = _schema_factory(sql_model, self.exclude, "Create")
         update_schema = _schema_factory(sql_model, self.exclude, "Update")
-        super().__init__(
-            schema=schema,
-            db_model=sql_model,
-            create_schema=create_schema,
-            update_schema=update_schema,
-            db=database.connection,
-            prefix=f"/{model_name}",
-            tags=[tag],
+        # super().__init__(
+        #     schema=schema,
+        #     db_model=sql_model,
+        #     create_schema=create_schema,
+        #     update_schema=update_schema,
+        #     db=database.connection,
+        #     prefix=f"/{model_name}",
+        #     tags=[tag],
+        # )
+        super().__init__(prefix=f"/{model_name}", tags=[tag])
+
+        super().add_api_route(
+            "",
+            self._get_all(),
+            methods=["GET"],
+            response_model=Optional[List[schema]],  # type: ignore
+            summary="Get All",
         )
 
     async def database(self) -> database.SESSION:
