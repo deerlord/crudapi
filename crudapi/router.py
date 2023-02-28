@@ -1,6 +1,6 @@
 import re
-from uuid import UUID
 from typing import Any, Callable, Coroutine, Optional, Type, TypeAlias, TypeVar
+from uuid import UUID
 
 from dblib import database
 from fastapi import APIRouter, Depends, HTTPException
@@ -27,7 +27,7 @@ class AsyncCRUDRouter(APIRouter):
         self,
         sql_model: Type[SQLModel],
     ):
-        self.pagination = pagination_factory(max_limit=None)
+        self.pagination = _pagination_factory(max_limit=None)
         self.sql_model = sql_model
         model_name = sql_model.__name__
         category = sql_model.__module__.split(".")[-1]
@@ -53,7 +53,7 @@ class AsyncCRUDRouter(APIRouter):
             "",
             self._get_all(),
             methods=["GET"],
-            response_model=Optional[List[self.schema]],  # type: ignore
+            response_model=Optional[list[self.schema]],  # type: ignore
             summary="Get All",
         )
 
@@ -69,7 +69,7 @@ class AsyncCRUDRouter(APIRouter):
             "",
             self._delete_all(),
             methods=["DELETE"],
-            response_model=Optional[List[self.schema]],  # type: ignore
+            response_model=Optional[list[self.schema]],  # type: ignore
             summary="Delete All",
         )
 
@@ -79,7 +79,7 @@ class AsyncCRUDRouter(APIRouter):
             methods=["GET"],
             response_model=self.schema,
             summary="Get One",
-            responses=self._error_responses(NOT_FOUND)
+            responses=self._error_responses(NOT_FOUND),
         )
 
         super().add_api_route(
@@ -88,7 +88,7 @@ class AsyncCRUDRouter(APIRouter):
             methods=["PATCH"],
             response_model=self.schema,
             summary="Update One",
-            responses=self._error_responses(NOT_FOUND)
+            responses=self._error_responses(NOT_FOUND),
         )
 
         super().add_api_route(
@@ -97,24 +97,22 @@ class AsyncCRUDRouter(APIRouter):
             methods=["DELETE"],
             response_model=self.schema,
             summary="Delete One",
-            responses=self._error_responses(NOT_FOUND)
+            responses=self._error_responses(NOT_FOUND),
         )
 
     def _error_responses(*errors: HTTPException) -> dict[int, dict[str, str]]:
-        responses = {
-            err.status_code: {"detail": err.detail} for err in errors
-        }
+        responses = {err.status_code: {"detail": err.detail} for err in errors}
         return responses
 
-    async def database(self) -> database.SESSION:
+    async def _database(self) -> database.SESSION:
         async with self.db() as db:
             yield db
 
     def _get_all(self, *args: Any, **kwargs: Any) -> CALLABLE_LIST:
         async def route(
             pagination: PAGINATION = self.pagination,
-            db: database.SESSION = Depends(self.database),
-        ) -> list[self.schema]:  # type: ignore
+            db: database.SESSION = Depends(self._database),
+        ) -> list[self.sql_model]:  # type: ignore
             skip, limit = pagination.get("skip"), pagination.get("limit")
             statement = select(self.sql_model)
             statement = (
@@ -123,26 +121,21 @@ class AsyncCRUDRouter(APIRouter):
                 .offset(skip)
             )
             results = await db.execute(statement)
-            retval = []
-            for scalar in results.scalars().all():
-                model = self.schema(**scalar.dict())
-                retval.append(model)
-            return retval
+            return results.scalars().all()
 
         return route
 
     def _get_one(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
             uuid: self.pk_type,  # type: ignore
-            db: database.SESSION = Depends(self.database),
-        ) -> self.schema:  # type: ignore
+            db: database.SESSION = Depends(self._database),
+        ) -> self.sql_model:  # type: ignore
             statement = select(self.sql_model)
             statement = statement.where(getattr(self.sql_model, self.pk_field) == uuid)
             results = await db.execute(statement)
             items = results.first()
             if items:
-                model = self.schema(**items[0].dict())
-                return model
+                return items[0]
             detail = f"{self.sql_model.__name__.lower()} not found"
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
 
@@ -151,14 +144,13 @@ class AsyncCRUDRouter(APIRouter):
     def _create(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
             model: self.create_schema,  # type: ignore
-            db: database.SESSION = Depends(self.database),
-        ) -> self.schema:
+            db: database.SESSION = Depends(self._database),
+        ) -> self.sql_model:
             db_model = self.sql_model(**model.dict())
             db.add(db_model)
             await db.commit()
             await db.refresh(db_model)
-            retval = self.schema(**db_model.dict())
-            return retval
+            return db_model
 
         return route
 
@@ -166,8 +158,8 @@ class AsyncCRUDRouter(APIRouter):
         async def route(
             uuid: self.pk_type,  # type: ignore
             model: self.update_schema,  # type: ignore
-            db: database.SESSION = Depends(self.database),
-        ) -> self.schema:
+            db: database.SESSION = Depends(self._database),
+        ) -> self.sql_model:
             get_one = self._get_one()
             db_model = await get_one(uuid, db)
             for key, value in model.dict(exclude={self.pk_field}).items():
@@ -175,15 +167,14 @@ class AsyncCRUDRouter(APIRouter):
                     setattr(db_model, key, value)
             await db.commit()
             await db.refresh(db_model)
-            retval = self.schema(**db_model.dict())
-            return retval
+            return db_model
 
         return route
 
     def _delete_all(self, *args: Any, **kwargs: Any) -> CALLABLE_LIST:
         async def route(
-            db: database.SESSION = Depends(self.database),
-        ) -> list[self.schema]:
+            db: database.SESSION = Depends(self._database),
+        ) -> list[self.sql_model]:
             statement = select(self.sql_model)
             results = await db.execute(statement)
             for result in results.scalars().all():
@@ -198,13 +189,11 @@ class AsyncCRUDRouter(APIRouter):
     def _delete_one(self, *args: Any, **kwargs: Any) -> CALLABLE:
         async def route(
             uuid: self.pk_type,  # type: ignore
-            db: database.SESSION = Depends(self.database),
+            db: database.SESSION = Depends(self._database),
         ):
             get_one = self._get_one()
             one = await get_one(uuid, db)
             await db.delete(one)
-            retval = self.schema(**one.dict())
-            return retval
 
         return route
 
@@ -230,26 +219,26 @@ def _schema_factory(schema_cls: Type[T], exclude: set = set(), action: str = "Cr
     return schema
 
 
-def pagination_factory(max_limit: Optional[int] = None) -> Any:
+def _pagination_factory(max_limit: Optional[int] = None) -> Any:
     """
     Created the pagination dependency to be used in the router
     """
 
     def pagination(skip: int = 0, limit: Optional[int] = max_limit) -> PAGINATION:
         if skip < 0:
-            raise create_query_validation_exception(
+            raise _create_query_validation_exception(
                 field="skip",
                 msg="skip query parameter must be greater or equal to zero",
             )
 
         if limit is not None:
             if limit <= 0:
-                raise create_query_validation_exception(
+                raise _create_query_validation_exception(
                     field="limit", msg="limit query parameter must be greater then zero"
                 )
 
             elif max_limit and max_limit < limit:
-                raise create_query_validation_exception(
+                raise _create_query_validation_exception(
                     field="limit",
                     msg=f"limit query parameter must be less then {max_limit}",
                 )
@@ -259,7 +248,7 @@ def pagination_factory(max_limit: Optional[int] = None) -> Any:
     return Depends(pagination)
 
 
-def create_query_validation_exception(field: str, msg: str) -> HTTPException:
+def _create_query_validation_exception(field: str, msg: str) -> HTTPException:
     return HTTPException(
         422,
         detail={
